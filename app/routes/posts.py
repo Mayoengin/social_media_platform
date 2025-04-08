@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 from app.database import get_session
-from app.model import Post, PostCreate, PostResponse, User,PostWithOwnerResponse,Vote,UserInfo
-from .auth import get_current_user  # Import the authentication dependency
+from app.model import Post, PostCreate, PostResponse, User, PostWithOwnerResponse, Vote, UserInfo
+from app.routes.auth import get_current_user  # Update this import to use absolute path
 from typing import Optional
 from sqlalchemy import func
 
@@ -11,6 +11,7 @@ router = APIRouter(
     prefix="/posts",
     tags=["posts"]
 )
+
 @router.get("/", response_model=list[PostWithOwnerResponse])
 def get_posts(
     session: Session = Depends(get_session),
@@ -32,7 +33,7 @@ def get_posts(
         Vote.post_id == Post.id, 
         isouter=True  # Left outer join as posts might not have votes
     ).group_by(
-        Post.id
+        Post.id, User.id
     )
     
     if search:
@@ -63,6 +64,7 @@ def get_posts(
         posts_with_details.append(post_response)
     
     return posts_with_details
+
 @router.post("/", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
 def create_post(
     post: PostCreate,
@@ -74,7 +76,19 @@ def create_post(
     session.add(new_post)
     session.commit()
     session.refresh(new_post)
-    return new_post
+    
+    # Create a PostResponse object with default votes=0
+    post_response = PostResponse(
+        id=new_post.id,
+        title=new_post.title,
+        content=new_post.content,
+        published=new_post.published,
+        created_at=new_post.created_at,
+        owner_id=new_post.owner_id,
+        votes=0  # Explicitly set votes to 0 for new posts
+    )
+    
+    return post_response
 
 @router.get("/latest", response_model=PostWithOwnerResponse)
 def get_latest_post(
@@ -201,4 +215,21 @@ def update_post(
 
     session.commit()
     session.refresh(post)
-    return post
+    
+    # Count the votes for this post
+    vote_count = session.exec(
+        select(func.count()).where(Vote.post_id == post.id)
+    ).one()
+    
+    # Create a response with the vote count
+    response = PostResponse(
+        id=post.id,
+        title=post.title,
+        content=post.content,
+        published=post.published,
+        created_at=post.created_at,
+        owner_id=post.owner_id,
+        votes=vote_count or 0
+    )
+    
+    return response

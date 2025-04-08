@@ -2,11 +2,19 @@ from fastapi import FastAPI
 from app.routes.posts import router as posts_router
 from app.routes.users import router as users_router
 from app.routes.vote import router as vote_router
+from app.routes.follow import router as follow_router
+from app.routes.comment import router as comment_router
 from app.database import create_db_and_tables
 from .config import settings
 from fastapi.middleware.cors import CORSMiddleware
+import logging
 
 app = FastAPI()
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 # Add CORS middleware
 origins = [
@@ -27,6 +35,8 @@ app.add_middleware(
 app.include_router(posts_router)
 app.include_router(users_router)
 app.include_router(vote_router)
+app.include_router(follow_router)
+app.include_router(comment_router)
 
 @app.get("/")
 def root():

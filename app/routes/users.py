@@ -4,7 +4,7 @@ from app.database import get_session
 from app.model import User, UserCreate, UserResponse
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordRequestForm
-from .auth import authenticate_user, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from .auth import authenticate_user, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, get_current_user
 from datetime import timedelta
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -43,6 +43,11 @@ def create_user(user: UserCreate, session: Session = Depends(get_session)):
 def get_users(session: Session = Depends(get_session)):
     users = session.exec(select(User)).all()
     return users
+
+@router.get("/me", response_model=UserResponse)
+def get_current_user_profile(current_user: User = Depends(get_current_user)):
+    """Get the current user's profile"""
+    return current_user
 
 @router.get("/id/{user_id}", response_model=UserResponse)
 def get_user(user_id: int, session: Session = Depends(get_session)):
