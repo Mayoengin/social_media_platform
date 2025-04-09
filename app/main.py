@@ -4,10 +4,12 @@ from app.routes.users import router as users_router
 from app.routes.vote import router as vote_router
 from app.routes.follow import router as follow_router
 from app.routes.comment import router as comment_router
+from app.routes.reel import router as reels_router  # Add this import
 from app.database import create_db_and_tables
 from .config import settings
 from fastapi.middleware.cors import CORSMiddleware
 import logging
+from fastapi.staticfiles import StaticFiles  # Add this import
 
 app = FastAPI()
 
@@ -15,14 +17,13 @@ app = FastAPI()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 # Add CORS middleware
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://your-frontend-domain.com",
+    "https://mayoengin.github.io",
+    "https://mayoengin.github.io/social_media_platform-frontend/"
 ]
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -31,12 +32,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files directory for serving uploaded files
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 # Include routers
 app.include_router(posts_router)
 app.include_router(users_router)
 app.include_router(vote_router)
 app.include_router(follow_router)
 app.include_router(comment_router)
+app.include_router(reels_router)  # Add this line
 
 @app.get("/")
 def root():

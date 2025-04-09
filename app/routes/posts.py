@@ -21,6 +21,7 @@ def get_posts(
     search: Optional[str] = ""
 ):
     # Join Post with User and count votes
+    # FIXED: Removed the incorrect reel_id condition
     query = select(
         Post, 
         func.count(Vote.post_id).label("votes")
@@ -64,6 +65,8 @@ def get_posts(
         posts_with_details.append(post_response)
     
     return posts_with_details
+
+# The rest of the file remains unchanged
 
 @router.post("/", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
 def create_post(

@@ -100,12 +100,15 @@ def delete_user(user_id: int, session: Session = Depends(get_session)):
 
 @router.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
+    print(f"Login attempt for username: {form_data.username}")
     user = authenticate_user(form_data.username, form_data.password, session)
     if not user:
+        print(f"Authentication failed for username: {form_data.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password"
         )
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
+    print(f"Successful login for username: {form_data.username}")
     return {"access_token": access_token, "token_type": "bearer"}

@@ -10,6 +10,7 @@ class PostBase(SQLModel):
     # published is optional, default to True if not provided
     published: Optional[bool] = True
 
+
 class Post(PostBase, table=True):
     # id is optional, primary key, auto-incremented by database
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -17,9 +18,20 @@ class Post(PostBase, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     owner_id: int = Field(foreign_key="user.id", nullable=False)
     owner: Optional["User"] = Relationship(back_populates="posts")
-    votes: List["Vote"] = Relationship(sa_relationship_kwargs={"primaryjoin": "Post.id==Vote.post_id"})
-    comments: List["Comment"] = Relationship(back_populates="post")
     
+    # Updated votes relationship to use the unified Vote model
+    votes: List["Vote"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "Post.id==Vote.post_id",
+            "cascade": "all, delete-orphan"
+        }
+    )
+    
+    comments: List["Comment"] = Relationship(
+        back_populates="post",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+
 class PostCreate(PostBase):
     pass
 
@@ -40,10 +52,13 @@ class User(UserBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     password: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    # Relationships
     posts: List["Post"] = Relationship(back_populates="owner")
     followers: List["Follow"] = Relationship(sa_relationship_kwargs={"primaryjoin": "User.id==Follow.following_id", "overlaps": "following"})
     following: List["Follow"] = Relationship(sa_relationship_kwargs={"primaryjoin": "User.id==Follow.follower_id", "overlaps": "followers"})
     comments: List["Comment"] = Relationship(back_populates="user")
+    reels: List["Reel"] = Relationship(back_populates="owner")
 
 class UserCreate(UserBase):
     password: str
@@ -91,8 +106,57 @@ class PostWithOwnerResponse(PostResponse):
 
 class Vote(SQLModel, table=True):
     user_id: int = Field(ondelete="CASCADE", primary_key=True, foreign_key="user.id")
-    post_id: int = Field(ondelete="CASCADE", primary_key=True, foreign_key="post.id")
+    
+    # Make these optional to allow votes on either posts or reels
+    post_id: Optional[int] = Field(default=None, foreign_key="post.id", ondelete="CASCADE", nullable=True, primary_key=True)
+    reel_id: Optional[int] = Field(default=None, foreign_key="reel.id", ondelete="CASCADE", nullable=True, primary_key=True)
+    
+    # Validator to ensure either post_id or reel_id is set but not both
+    @field_validator('reel_id')
+    def validate_vote_target(cls, v, info: ValidationInfo):
+        post_id = info.data.get("post_id") if info.data else None
+        if (post_id is None and v is None) or (post_id is not None and v is not None):
+            raise ValueError("Either post_id or reel_id must be set, but not both")
+        return v
+# Add to model.py
+class ReelBase(SQLModel):
+    title: str
+    description: Optional[str] = None
+    video_url: str  # URL to the stored video file
+    thumbnail_url: Optional[str] = None  # URL to thumbnail image
+    duration: int  # Duration in seconds (max of 110 seconds = 1:50 mins)
 
+class Reel(ReelBase, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    owner_id: int = Field(foreign_key="user.id", nullable=False)
+    owner: Optional["User"] = Relationship(back_populates="reels")
+    
+    # Relationships using existing models
+    votes: List["Vote"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "Reel.id==Vote.reel_id",
+            "cascade": "all, delete-orphan"
+        }
+    )
+    comments: List["Comment"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "Reel.id==Comment.reel_id",
+            "cascade": "all, delete-orphan"
+        }
+    )
+
+class ReelCreate(ReelBase):
+    pass
+
+class ReelResponse(ReelBase):
+    id: int
+    created_at: datetime
+    owner_id: int
+    votes: int = 0
+
+class ReelWithOwnerResponse(ReelResponse):
+    owner: UserInfo
 # New models for Follow functionality
 class Follow(SQLModel, table=True):
     follower_id: int = Field(ondelete="CASCADE", primary_key=True, foreign_key="user.id")
@@ -112,9 +176,23 @@ class Comment(CommentBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     user_id: int = Field(foreign_key="user.id", nullable=False)
-    post_id: int = Field(foreign_key="post.id", nullable=False)
+    
+    # Make post_id optional to allow comments on either posts or reels
+    post_id: Optional[int] = Field(default=None, foreign_key="post.id", ondelete="CASCADE", nullable=True)
+    reel_id: Optional[int] = Field(default=None, foreign_key="reel.id", ondelete="CASCADE", nullable=True)
+    
+    # Relationships
     user: Optional["User"] = Relationship(back_populates="comments")
     post: Optional["Post"] = Relationship(back_populates="comments")
+    reel: Optional["Reel"] = Relationship(back_populates="comments")
+    
+    # Validator to ensure either post_id or reel_id is set but not both
+    @field_validator('reel_id')
+    def validate_comment_target(cls, v, info: ValidationInfo):
+        post_id = info.data.get("post_id") if info.data else None
+        if (post_id is None and v is None) or (post_id is not None and v is not None):
+            raise ValueError("Either post_id or reel_id must be set, but not both")
+        return v
 
 class CommentCreate(CommentBase):
     pass
@@ -123,5 +201,6 @@ class CommentResponse(CommentBase):
     id: int
     created_at: datetime
     user_id: int
-    post_id: int
+    post_id: Optional[int] = None
+    reel_id: Optional[int] = None
     user: UserInfo
