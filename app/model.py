@@ -45,8 +45,7 @@ class PostResponse(PostBase):
 class UserBase(SQLModel):
     username: str = Field(index=True)
     email: EmailStr = Field(unique=True, index=True)
-    phone_number: int = Field(unique=True, nullable=False)
-
+    phone_number: Optional[int] = Field(unique=True, nullable=True)
     
 class User(UserBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
