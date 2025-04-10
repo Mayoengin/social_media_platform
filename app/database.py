@@ -3,8 +3,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from .config import settings
 
 # Import all models to ensure they're registered with SQLModel
-from .model import Post, User, Vote, Comment, Follow
-
 DATABASE_URL = f"postgresql://{settings.database_username}:{settings.database_password}@{settings.database_hostname}:{settings.database_port}/{settings.database_name}"
 engine = create_engine(DATABASE_URL, echo=True)
 

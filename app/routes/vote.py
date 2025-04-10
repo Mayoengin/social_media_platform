@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select, SQLModel
 from app.database import get_session
-from app.model import Post, Reel, Vote, User
+from app.model import Post, Reel, PostVote, ReelVote, User  # Import the new models
 from app.routes.auth import get_current_user
 from typing import Optional
 
@@ -27,21 +27,21 @@ def vote(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Either post_id or reel_id must be provided, but not both"
         )
-    
+   
     # Handle post vote
     if vote_request.post_id is not None:
         post_id = vote_request.post_id
-        
+       
         # Check if post exists
         post = db.get(Post, post_id)
         if not post:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
-            
+           
         # Check if vote already exists
-        existing_vote = db.exec(select(Vote).where(
-            (Vote.post_id == post_id) & (Vote.user_id == current_user.id)
+        existing_vote = db.exec(select(PostVote).where(
+            (PostVote.post_id == post_id) & (PostVote.user_id == current_user.id)
         )).first()
-        
+       
         if existing_vote:
             # Remove vote if it exists
             db.delete(existing_vote)
@@ -49,25 +49,25 @@ def vote(
             return {"message": "Vote removed from post"}
         else:
             # Add new vote
-            new_vote = Vote(post_id=post_id, user_id=current_user.id)
+            new_vote = PostVote(post_id=post_id, user_id=current_user.id)
             db.add(new_vote)
             db.commit()
             return {"message": "Vote added to post"}
-    
+   
     # Handle reel vote
     else:
         reel_id = vote_request.reel_id
-        
+       
         # Check if reel exists
         reel = db.get(Reel, reel_id)
         if not reel:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reel not found")
-            
+           
         # Check if vote already exists
-        existing_vote = db.exec(select(Vote).where(
-            (Vote.reel_id == reel_id) & (Vote.user_id == current_user.id)
+        existing_vote = db.exec(select(ReelVote).where(
+            (ReelVote.reel_id == reel_id) & (ReelVote.user_id == current_user.id)
         )).first()
-        
+       
         if existing_vote:
             # Remove vote if it exists
             db.delete(existing_vote)
@@ -75,7 +75,7 @@ def vote(
             return {"message": "Vote removed from reel"}
         else:
             # Add new vote
-            new_vote = Vote(reel_id=reel_id, user_id=current_user.id)
+            new_vote = ReelVote(reel_id=reel_id, user_id=current_user.id)
             db.add(new_vote)
             db.commit()
             return {"message": "Vote added to reel"}

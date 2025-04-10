@@ -7,7 +7,7 @@ import shutil
 import uuid
 
 from app.database import get_session
-from app.model import User, Reel, ReelCreate, ReelResponse, ReelWithOwnerResponse, UserInfo, Vote, Comment, CommentCreate, CommentResponse
+from app.model import User, Reel, ReelCreate, ReelResponse, ReelWithOwnerResponse, UserInfo, ReelVote, Comment, CommentCreate, CommentResponse
 from app.routes.auth import get_current_user
 
 router = APIRouter(
@@ -30,26 +30,26 @@ def allowed_file(filename):
 async def create_reel(
     title: str = Form(...),
     description: Optional[str] = Form(None),
-    video: UploadFile = File(...),
+    video_file: UploadFile = File(...),
     thumbnail: Optional[UploadFile] = File(None),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
     # Validate file size and type
-    if not allowed_file(video.filename):
+    if not allowed_file(video_file.filename):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid video format. Allowed formats: mp4, mov, avi"
         )
     
     # Create unique filename
-    video_filename = f"{uuid.uuid4()}_{video.filename}"
+    video_filename = f"{uuid.uuid4()}_{video_file.filename}"
     video_path = os.path.join(UPLOAD_DIR, video_filename)
     
     # Save video file
     try:
         with open(video_path, "wb") as buffer:
-            shutil.copyfileobj(video.file, buffer)
+            shutil.copyfileobj(video_file.file, buffer)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -98,6 +98,7 @@ async def create_reel(
     
     return reel_response
 
+
 @router.get("/", response_model=list[ReelWithOwnerResponse])
 def get_reels(
     session: Session = Depends(get_session),
@@ -109,14 +110,14 @@ def get_reels(
     # Join Reel with User and count votes
     query = select(
         Reel, 
-        func.count(Vote.reel_id).label("votes")
+        func.count(ReelVote.reel_id).label("votes")
     ).join(
         User, 
         Reel.owner_id == User.id, 
         isouter=False
     ).join(
-        Vote, 
-        (Vote.reel_id == Reel.id) & (Vote.post_id == None), 
+        ReelVote, 
+        ReelVote.reel_id == Reel.id, 
         isouter=True
     ).group_by(
         Reel.id, User.id
@@ -159,13 +160,13 @@ def get_reel_by_id(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    # Query that joins Reel with Vote to count votes
+    # Query that joins Reel with ReelVote to count votes
     query = select(
         Reel, 
-        func.count(Vote.reel_id).label("votes")
+        func.count(ReelVote.reel_id).label("votes")
     ).join(
-        Vote, 
-        (Vote.reel_id == Reel.id) & (Vote.post_id == None), 
+        ReelVote, 
+        ReelVote.reel_id == Reel.id, 
         isouter=True
     ).filter(Reel.id == id).group_by(Reel.id)
     

@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 from app.database import get_session
-from app.model import Post, PostCreate, PostResponse, User, PostWithOwnerResponse, Vote, UserInfo
-from app.routes.auth import get_current_user  # Update this import to use absolute path
+from app.model import Post, PostCreate, PostResponse, User, PostWithOwnerResponse, PostVote, UserInfo  # Changed Vote to PostVote
+from app.routes.auth import get_current_user
 from typing import Optional
 from sqlalchemy import func
 
@@ -24,14 +24,14 @@ def get_posts(
     # FIXED: Removed the incorrect reel_id condition
     query = select(
         Post, 
-        func.count(Vote.post_id).label("votes")
+        func.count(PostVote.post_id).label("PostVote")
     ).join(
         User, 
         Post.owner_id == User.id, 
         isouter=False  # Inner join as every post must have an owner
     ).join(
-        Vote, 
-        Vote.post_id == Post.id, 
+        PostVote, 
+        PostVote.post_id == Post.id, 
         isouter=True  # Left outer join as posts might not have votes
     ).group_by(
         Post.id, User.id
@@ -101,10 +101,10 @@ def get_latest_post(
     # Query that joins Post with Vote to count votes for the latest post
     query = select(
         Post, 
-        func.count(Vote.post_id).label("votes")
+        func.count(PostVote.post_id).label("votes")
     ).join(
-        Vote, 
-        Vote.post_id == Post.id, 
+        PostVote, 
+        PostVote.post_id == Post.id, 
         isouter=True
     ).group_by(
         Post.id
@@ -144,10 +144,10 @@ def get_post_by_id(
     # Query that joins Post with Vote to count votes for the specific post
     query = select(
         Post, 
-        func.count(Vote.post_id).label("votes")
+        func.count(PostVote.post_id).label("votes")
     ).join(
-        Vote, 
-        Vote.post_id == Post.id, 
+        PostVote, 
+        PostVote.post_id == Post.id, 
         isouter=True
     ).filter(Post.id == id).group_by(Post.id)
     
@@ -221,7 +221,7 @@ def update_post(
     
     # Count the votes for this post
     vote_count = session.exec(
-        select(func.count()).where(Vote.post_id == post.id)
+        select(func.count()).where(PostVote.post_id == post.id)
     ).one()
     
     # Create a response with the vote count

@@ -20,12 +20,13 @@ class Post(PostBase, table=True):
     owner: Optional["User"] = Relationship(back_populates="posts")
     
     # Updated votes relationship to use the unified Vote model
-    votes: List["Vote"] = Relationship(
+    votes: List["PostVote"] = Relationship(
         sa_relationship_kwargs={
-            "primaryjoin": "Post.id==Vote.post_id",
+            "primaryjoin": "Post.id==PostVote.post_id",
             "cascade": "all, delete-orphan"
         }
     )
+
     
     comments: List["Comment"] = Relationship(
         back_populates="post",
@@ -46,7 +47,8 @@ class UserBase(SQLModel):
     username: str = Field(index=True)
     email: EmailStr = Field(unique=True, index=True)
     phone_number: Optional[int] = Field(unique=True, nullable=True)
-    
+    profile_picture: Optional[str] = None  # URL to profile picture
+    background_image: Optional[str] = None  # URL to background image    
 class User(UserBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     password: str
@@ -103,20 +105,15 @@ class UserInfo(SQLModel):
 class PostWithOwnerResponse(PostResponse):
     owner: UserInfo
 
-class Vote(SQLModel, table=True):
-    user_id: int = Field(ondelete="CASCADE", primary_key=True, foreign_key="user.id")
-    
-    # Make these optional to allow votes on either posts or reels
-    post_id: Optional[int] = Field(default=None, foreign_key="post.id", ondelete="CASCADE", nullable=True, primary_key=True)
-    reel_id: Optional[int] = Field(default=None, foreign_key="reel.id", ondelete="CASCADE", nullable=True, primary_key=True)
-    
-    # Validator to ensure either post_id or reel_id is set but not both
-    @field_validator('reel_id')
-    def validate_vote_target(cls, v, info: ValidationInfo):
-        post_id = info.data.get("post_id") if info.data else None
-        if (post_id is None and v is None) or (post_id is not None and v is not None):
-            raise ValueError("Either post_id or reel_id must be set, but not both")
-        return v
+class PostVote(SQLModel, table=True):
+    user_id: int = Field(primary_key=True, foreign_key="user.id", ondelete="CASCADE")
+    post_id: int = Field(primary_key=True, foreign_key="post.id", ondelete="CASCADE")
+
+class ReelVote(SQLModel, table=True):
+    user_id: int = Field(primary_key=True, foreign_key="user.id", ondelete="CASCADE")
+    reel_id: int = Field(primary_key=True, foreign_key="reel.id", ondelete="CASCADE")
+
+
 # Add to model.py
 class ReelBase(SQLModel):
     title: str
@@ -132,9 +129,9 @@ class Reel(ReelBase, table=True):
     owner: Optional["User"] = Relationship(back_populates="reels")
     
     # Relationships using existing models
-    votes: List["Vote"] = Relationship(
+    votes: List["ReelVote"] = Relationship(
         sa_relationship_kwargs={
-            "primaryjoin": "Reel.id==Vote.reel_id",
+            "primaryjoin": "Reel.id==ReelVote.reel_id",
             "cascade": "all, delete-orphan"
         }
     )
@@ -203,3 +200,43 @@ class CommentResponse(CommentBase):
     post_id: Optional[int] = None
     reel_id: Optional[int] = None
     user: UserInfo
+
+from pydantic import BaseModel, field_validator, ValidationInfo
+
+class UserUpdateRequest(BaseModel):
+    email: Optional[str] = None
+    phone_number: Optional[int] = None
+    current_password: Optional[str] = None
+    new_password: Optional[str] = None
+    
+    @field_validator('email')
+    def validate_email(cls, v):
+        # Reuse your existing email validation logic or add specific checks
+        if v and not re.match(r"[^@]+@[^@]+\.[^@]+", v):
+            raise ValueError('Invalid email format')
+        return v
+    
+    @field_validator('new_password')
+    def validate_password(cls, v):
+        """
+        Reuse the password validation logic from UserCreate
+        """
+        if v:
+            min_length = 8
+            
+            if len(v) < min_length:
+                raise ValueError(f'Password must be at least {min_length} characters')
+                
+            if not re.search(r'[A-Z]', v):
+                raise ValueError('Password must contain at least one uppercase letter')
+                
+            if not re.search(r'[a-z]', v):
+                raise ValueError('Password must contain at least one lowercase letter')
+                
+            if not re.search(r'[0-9]', v):
+                raise ValueError('Password must contain at least one number')
+                
+            if not re.search(r'[^A-Za-z0-9]', v):
+                raise ValueError('Password must contain at least one special character')
+        
+        return v
