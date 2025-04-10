@@ -247,7 +247,7 @@ def upload_profile_picture(
            
         # Generate file URL with full domain
         # Replace with your actual backend URL or use config
-        backend_url = "http://localhost:8000"  # Update this to your actual URL
+        backend_url = "//social-media-platform-jgf2.onrender.com"  # Update this to your actual URL
         file_url = f"{backend_url}/static/profile_pictures/{unique_filename}"
         print(f"File URL: {file_url}")
        
@@ -304,7 +304,7 @@ def upload_background_image(
            
         # Generate file URL with full domain
         # Replace with your actual backend URL or use config
-        backend_url = "http://localhost:8000"  # Update this to your actual URL
+        backend_url = "//social-media-platform-jgf2.onrender.com"  # Update this to your actual URL
         file_url = f"{backend_url}/static/background_images/{unique_filename}"
        
         # Update user's background image
